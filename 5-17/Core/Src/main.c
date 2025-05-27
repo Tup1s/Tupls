@@ -36,6 +36,7 @@
 #include "servo.h"
 #include "Usart.h"
 #include "hardware.h"
+#include "cascade_control.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,14 +47,15 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define RX_BUFFER_SIZE 128
-
+#define TIMER_MAX_COUNT 65535 // 定时器最大计数值（16 位定时器）
 #define CAMERA_WIDTH 160  
 #define CAMERA_HEIGHT 120
-#define MIN_ANGLE_X 45.0f  
-#define MAX_ANGLE_X 135.0f  
-#define MIN_ANGLE_Y 60.0f  
-#define MAX_ANGLE_Y 120.0f  
-
+#define MIN_ANGLE_X 0.0f  
+#define MAX_ANGLE_X 180.0f  
+#define MIN_ANGLE_Y 0.0f  
+#define MAX_ANGLE_Y 180.0f  
+#define PULSES_PER_REV  (13 * 4 * 28) // 编码器线数13，四倍频，减速比28:1
+#define TIME_INTERVAL  0.01f         // 定时器中断时间间隔（单位：秒）
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -76,23 +78,25 @@ uint8_t key_value;
 uint8_t rx_buffer[RX_BUFFER_SIZE];
 uint8_t rx_len = 0;
 
-uint8_t Send_Data[8]={0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}; //鍙戦?佹暟鎹?鏁扮??
-float wheel_circumference = 3.14159f * 0.065f; // 鍗曚綅锛氱背
-int32_t position_TIM3 = 0; // 缂栫爜鍣ㄨ?℃暟浣嶇??
-int32_t position_TIM4 = 0; // 缂栫爜鍣ㄨ?℃暟浣嶇??
+uint8_t Send_Data[8]={0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}; //发送数据数组
+float wheel_circumference = 3.14159f * 0.065f; // 单位：米
+int32_t position_TIM3 = 0; // 编码器计数位置
+int32_t position_TIM4 = 0; // 编码器计数位置
 int32_t prev_count_TIM3 = 0;
 int32_t prev_count_TIM4 = 0;
 float RPM_TIM3 = 0.0f;
 float RPM_TIM4 = 0.0f;
-float position_angle_TIM3 = 0.0f; // 鐢垫満1浣嶇疆绱?璁¤?掑害
-float position_angle_TIM4 = 0.0f; // 鐢垫満2浣嶇疆绱?璁¤?掑害
-float speed_TIM3 = 0 ;// 鐢垫満1绾块?熷害
-float speed_TIM4 = 0 ;// 鐢垫満2绾块?熷害
-float s_TIM3 = 0 ; // 鐢垫満1浣嶇Щ
-float s_TIM4 = 0 ; // 鐢垫満2浣嶇Щ
+float position_angle_TIM3 = 0.0f; // 电机1位置累计角度
+float position_angle_TIM4 = 0.0f; // 电机2位置累计角度
+float speed_TIM3 = 0 ;// 电机1线速度
+float speed_TIM4 = 0 ;// 电机2线速度
+float s_TIM3 = 0 ; // 电机1位移
+float s_TIM4 = 0 ; // 电机2位移
 
 PID_Controller panPID;  
 PID_Controller tiltPID;
+CascadePID pid_TIM3 = {0}; // 创建串级PID结构体变量
+CascadePID pid_TIM4 = {0}; 
 
 float target_X = CAMERA_WIDTH / 2;  
 float target_Y = CAMERA_HEIGHT / 2; 
@@ -170,6 +174,16 @@ int main(void)
   //example();             //电机测试函数
   //USART2_Send_Data(Send_Data,8);      //发送数据函数(USART2)
 
+  // 初始化内环参数：比例系数10，积分系数0，微分系数0，最大积分0，最大输出1000
+  PID_Init_control(&pid_TIM3.inner, 0.0f, 0.0f, 0.0f,  125, 125);
+  // 初始化外环参数：比例系数5，积分系数0，微分系数5，最大积分0，最大输出100
+  PID_Init_control(&pid_TIM3.outer, 0.0f, 0.0f, 0.0f,  999, 999);
+  // 初始化内环参数：比例系数10，积分系数0，微分系数0，最大积分0，最大输出1000
+  PID_Init_control(&pid_TIM4.inner, 0.0f, 0.0f, 0.0f,  125, 125);
+  // 初始化外环参数：比例系数5，积分系数0，微分系数5，最大积分0，最大输出100
+  PID_Init_control(&pid_TIM3.outer, 0.0f, 0.0f, 0.0f,  999, 999);
+
+
   PID_Init(&panPID,  0.01f, 0.0f, 0.003f);       
 	PID_Init(&tiltPID, 0.01f, 0.0f, 0.003f);
 	PID_SetSetpoint(&panPID,90);     // X设置目标值
@@ -186,12 +200,26 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
    LCD_Show();
+   float outerTarget_TIM3 = getTargetPosition(&htim3,0); // 获取外环目标值
+   float outerFeedback_TIM3 = getFeedbackPosition(&htim3); // 获取外环反馈值
+   float innerFeedback_TIM3 = getFeedbackSpeed(&htim3); // 获取内环反馈值
+
+   float outerTarget_TIM4  = getTargetPosition(&htim4,0); //取外环目标值
+   float outerFeedback_TIM4 = getFeedbackPosition(&htim4); // 获取外环反馈值
+   float innerFeedback_TIM4 = getFeedbackSpeed(&htim4);// 获取内环反馈值
+   
    target_X=received_1;
 	 target_Y=received_2;	
+
    x=PID_Compute(&panPID, target_X);  
    y=PID_Compute(&tiltPID, target_Y);
+   
+   PID_CascadeCalc(&pid_TIM3, outerTarget_TIM3, outerFeedback_TIM3, innerFeedback_TIM3); // 进行PID计算
+   PID_CascadeCalc(&pid_TIM4, outerTarget_TIM4, outerFeedback_TIM4, innerFeedback_TIM4); // 进行PID计算
+   setActuatorOutput(&htim3,pid_TIM3.output);
+   setActuatorOutput(&htim4,pid_TIM4.output);
+
    if (!servo_rotation_direction) 
 	{ 
         x = -x;  
@@ -210,7 +238,7 @@ int main(void)
         servo_pitch_value += y;
 		    SendServo_Y_PWM(angle_to_pulse(servo_pitch_value) );
   }
-  if(rx_buffer[0]=0x01)
+  if(rx_buffer[0]==0x01)
   {BUZZER_ON();}
    HAL_Delay(5);
 

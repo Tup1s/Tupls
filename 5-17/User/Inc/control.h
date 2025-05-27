@@ -16,7 +16,8 @@ void Stop();
 void Spin_CounterClockwise(float duty);
 void Spin_Clockwise(float duty);
 void example();
-
+void TIM1_PWM_CH1_SetPWM(float pwm );
+void TIM1_PWM_CH2_SetPWM(float pwm );
 
 
 #endif

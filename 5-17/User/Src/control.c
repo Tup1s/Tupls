@@ -149,3 +149,11 @@ void example()
   //  HAL_Delay(2000);
   //  Stop();
 }
+void TIM1_PWM_CH1_SetPWM(float pwm ) //设置电机pwm//左轮
+	{
+    TIM1->CCR1 = pwm ;
+  }
+void TIM1_PWM_CH2_SetPWM(float pwm ) //设置电机pwm//右轮
+	{
+    TIM1->CCR2 = pwm ;
+  }
