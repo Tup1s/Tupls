@@ -48,14 +48,14 @@
 /* USER CODE BEGIN PD */
 #define RX_BUFFER_SIZE 128
 #define TIMER_MAX_COUNT 65535 // 定时器最大计数值（16 位定时器）
-#define CAMERA_WIDTH 160  
-#define CAMERA_HEIGHT 120
-#define MIN_ANGLE_X 0.0f  
-#define MAX_ANGLE_X 180.0f  
-#define MIN_ANGLE_Y 0.0f  
-#define MAX_ANGLE_Y 180.0f  
+#define CAMERA_WIDTH 1920  
+#define CAMERA_HEIGHT 1080
+#define MIN_ANGLE_X 30.0f 
+#define MAX_ANGLE_X 150.0f  
+#define MIN_ANGLE_Y 30.0f  
+#define MAX_ANGLE_Y 150.0f  
 #define PULSES_PER_REV  (13 * 4 * 28) // 编码器线数13，四倍频，减速比28:1
-#define TIME_INTERVAL  0.01f         // 定时器中断时间间隔（单位：秒）
+#define TIME_INTERVAL  0.1f         // 定时器中断时间间隔（单位：秒）100 ms
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -82,8 +82,8 @@ uint8_t Send_Data[8]={0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00}; //发送数据数组
 float wheel_circumference = 3.14159f * 0.065f; // 单位：米
 int32_t position_TIM3 = 0; // 编码器计数位置
 int32_t position_TIM4 = 0; // 编码器计数位置
-int32_t prev_count_TIM3 = 0;
-int32_t prev_count_TIM4 = 0;
+uint16_t prev_count_TIM3 = 0;
+uint16_t prev_count_TIM4 = 0;
 float RPM_TIM3 = 0.0f;
 float RPM_TIM4 = 0.0f;
 float position_angle_TIM3 = 0.0f; // 电机1位置累计角度
@@ -93,17 +93,17 @@ float speed_TIM4 = 0 ;// 电机2线速度
 float s_TIM3 = 0 ; // 电机1位移
 float s_TIM4 = 0 ; // 电机2位移
 
-PID_Controller panPID;  
-PID_Controller tiltPID;
-CascadePID pid_TIM3 = {0}; // 创建串级PID结构体变量
-CascadePID pid_TIM4 = {0}; 
+PID_Controller panPID;  //X轴PID控制器
+PID_Controller tiltPID;  //Y轴PID控制器
+CascadePID pid_TIM3 = {0}; // 创建串级PID结构体变量//右轮
+CascadePID pid_TIM4 = {0}; //左轮
 
 float target_X = CAMERA_WIDTH / 2;  
 float target_Y = CAMERA_HEIGHT / 2; 
 float x,y;
-float servo_rotation_value=90.0;
+float servo_rotation_value=90.0;//舵机初始角度
 float servo_pitch_value=90.0;
-uint8_t servo_rotation_direction=1;
+uint8_t servo_rotation_direction=1;//舵机转动方向
 uint8_t servo_pitch_direction=0;
 /* USER CODE END PV */
 
@@ -167,30 +167,25 @@ int main(void)
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  SPI_LCD_Init();	            //LCD初始化
-  TIM_Init();                //TIM初始化
-  USART_Init();              //串口初始化
-  //test();                    //硬件测试函数
-  //example();             //电机测试函数
+  SPI_LCD_Init();	                      //LCD初始化
+  TIM_Init();                           //TIM初始化
+  USART_Init();                         //串口初始化
+  //test();                             //硬件测试函数
+  //example();                          //电机测试函数
   //USART2_Send_Data(Send_Data,8);      //发送数据函数(USART2)
 
-  // 初始化内环参数：比例系数10，积分系数0，微分系数0，最大积分0，最大输出1000
+  // 初始化内环参数
   PID_Init_control(&pid_TIM3.inner, 0.0f, 0.0f, 0.0f,  125, 125);
-  // 初始化外环参数：比例系数5，积分系数0，微分系数5，最大积分0，最大输出100
-  PID_Init_control(&pid_TIM3.outer, 0.0f, 0.0f, 0.0f,  999, 999);
-  // 初始化内环参数：比例系数10，积分系数0，微分系数0，最大积分0，最大输出1000
   PID_Init_control(&pid_TIM4.inner, 0.0f, 0.0f, 0.0f,  125, 125);
-  // 初始化外环参数：比例系数5，积分系数0，微分系数5，最大积分0，最大输出100
+  // 初始化外环参数
   PID_Init_control(&pid_TIM3.outer, 0.0f, 0.0f, 0.0f,  999, 999);
+  PID_Init_control(&pid_TIM4.outer, 0.0f, 0.0f, 0.0f,  999, 999);
 
-
+//初始化舵机PID
   PID_Init(&panPID,  0.01f, 0.0f, 0.003f);       
 	PID_Init(&tiltPID, 0.01f, 0.0f, 0.003f);
-	PID_SetSetpoint(&panPID,90);     // X设置目标值
-	PID_SetSetpoint(&tiltPID,90);    //Y设置目标值
-  
-  
-  
+	PID_SetSetpoint(&panPID,960);     // X设置目标值
+	PID_SetSetpoint(&tiltPID,540);    //Y设置目标值
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -201,11 +196,12 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
    LCD_Show();
-   float outerTarget_TIM3 = getTargetPosition(&htim3,0); // 获取外环目标值
+  
+   float outerTarget_TIM3   = getTargetPosition(&htim3,0); // 获取外环目标值
    float outerFeedback_TIM3 = getFeedbackPosition(&htim3); // 获取外环反馈值
    float innerFeedback_TIM3 = getFeedbackSpeed(&htim3); // 获取内环反馈值
 
-   float outerTarget_TIM4  = getTargetPosition(&htim4,0); //取外环目标值
+   float outerTarget_TIM4   = getTargetPosition(&htim4,0); //取外环目标值
    float outerFeedback_TIM4 = getFeedbackPosition(&htim4); // 获取外环反馈值
    float innerFeedback_TIM4 = getFeedbackSpeed(&htim4);// 获取内环反馈值
    
@@ -238,15 +234,9 @@ int main(void)
         servo_pitch_value += y;
 		    SendServo_Y_PWM(angle_to_pulse(servo_pitch_value) );
   }
-  if(rx_buffer[0]==0x01)
-  {BUZZER_ON();}
+  // if(rx_buffer[0]==0x01)
+  // {BUZZER_ON();}
    HAL_Delay(5);
-
-
-
-
-
-
   }
 
 
@@ -316,16 +306,16 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) // 10ms//TIM4为左轮TIM3为右轮
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) // 100ms//TIM4为左轮TIM3为右轮
 {
     if (htim->Instance == TIM2) 
     {
         // 读取当前计数值
-        int16_t current_count_TIM3 = (int16_t)TIM3->CNT;
-        int16_t current_count_TIM4 = (int16_t)TIM4->CNT;
+        uint16_t current_count_TIM3 = TIM3->CNT;
+        uint16_t current_count_TIM4 = TIM4->CNT;
         // 计算计数增量
-        int16_t delta_TIM3 = current_count_TIM3 - prev_count_TIM3;
-        int16_t delta_TIM4 = current_count_TIM4 - prev_count_TIM4;
+        int32_t delta_TIM3 = current_count_TIM3 - prev_count_TIM3;
+        int32_t delta_TIM4 = current_count_TIM4 - prev_count_TIM4;
         if (delta_TIM3 > (TIMER_MAX_COUNT / 2)) 
         {                                           
             delta_TIM3 -= TIMER_MAX_COUNT + 1;// 发生下溢

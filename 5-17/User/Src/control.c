@@ -5,7 +5,7 @@ void TIM_Init()
   HAL_TIM_Encoder_Start(&htim3,TIM_CHANNEL_1|TIM_CHANNEL_2 );//Tim3编码器模式开启
   HAL_TIM_Encoder_Start(&htim4,TIM_CHANNEL_1|TIM_CHANNEL_2 );//Tim4编码器模式开启
   
-  HAL_TIM_Base_Start_IT(&htim2); // Tim2中断开启	
+  HAL_TIM_Base_Start_IT(&htim2); // Tim2中断开启
 }
 void TIM1_PWM_CH1_SetDuty(float duty) //设置电机占空比函数
 	{
@@ -122,7 +122,7 @@ void Spin_CounterClockwise(float duty) //原地掉头（逆时针）
 
 }
 
-void Spin_Clockwise(float duty) 			//原地掉头（顺时针）
+void Spin_Clockwise(float duty) 	//原地掉头（顺时针）
 {
   Set_Motor_TIM1_CH1_Direction(1);    
   TIM1_PWM_CH1_SetDuty(duty);
@@ -131,7 +131,48 @@ void Spin_Clockwise(float duty) 			//原地掉头（顺时针）
   TIM1_PWM_CH2_SetDuty(duty);
 
 }
-void example()
+
+void TIM1_PWM_CH1_SetPWM(float pwm ) 
+{
+    uint16_t arr = TIM1->ARR;
+    int32_t  ccr = (int32_t)(pwm + 0.5f);
+    if (ccr > arr) ccr = arr;
+    if (ccr < -arr) ccr = -arr;
+    if (ccr > 0) 
+		{
+			HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+      HAL_TIMEx_PWMN_Stop(&htim1, TIM_CHANNEL_1);
+      TIM1->CCR1 = ccr  ;
+		} 
+	  else if(ccr < 0) 
+    {
+      HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_1);
+      HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_1);
+      TIM1->CCR1 = -ccr  ;
+    }
+}
+
+void TIM1_PWM_CH2_SetPWM(float pwm ) 
+{
+    uint16_t arr = TIM1->ARR;
+    int32_t  ccr = (int32_t)(pwm + 0.5f);
+    if (ccr > arr) ccr = arr;
+    if (ccr < -arr) ccr = -arr;
+    if (ccr > 0) 
+		{
+			HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
+      HAL_TIMEx_PWMN_Stop(&htim1, TIM_CHANNEL_2);
+      TIM1->CCR2 = ccr  ;
+		} 
+	  else if(ccr < 0) 
+    {
+      HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_2);
+      HAL_TIMEx_PWMN_Start(&htim1, TIM_CHANNEL_2);
+      TIM1->CCR2 = -ccr  ;
+    }
+}
+
+  void example()
 {
   //  Move_Forward(50);
   //  HAL_Delay(2000);
@@ -149,11 +190,3 @@ void example()
   //  HAL_Delay(2000);
   //  Stop();
 }
-void TIM1_PWM_CH1_SetPWM(float pwm ) //设置电机pwm//左轮
-	{
-    TIM1->CCR1 = pwm ;
-  }
-void TIM1_PWM_CH2_SetPWM(float pwm ) //设置电机pwm//右轮
-	{
-    TIM1->CCR2 = pwm ;
-  }

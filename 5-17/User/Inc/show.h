@@ -3,8 +3,6 @@
 
 #include "spi.h"
 
-
-
 extern uint8_t received_1;
 extern uint8_t received_2;
 extern uint8_t received_3;

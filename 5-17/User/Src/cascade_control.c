@@ -53,11 +53,6 @@ void PID_Calc(PID *pid, float  reference, float  feedbackposition)
         pid->output = -pid->maxOutput;
 }
 
-// void PID_SetPosition(PID *pid, int32_t setposition)  
-// {  
-//     pid->setposition = setposition;  
-// }
-// 串级PID的计算函数
 // 参数(PID结构体, 外环目标值, 外环反馈值, 内环反馈值)
 void PID_CascadeCalc(CascadePID *pid, float outerRef, float outerFdb, float innerFdb)
 {
@@ -71,11 +66,11 @@ void setActuatorOutput(TIM_HandleTypeDef *htim,float output)
 {
     if (htim->Instance == TIM3){
         TIM1_PWM_CH2_SetPWM(output);
-        printf("TIM3 Output: %f\n", output);//右轮PWM
+       // printf("TIM3 Output: %f\n", output);//右轮PWM
     } 
     if (htim->Instance == TIM4){
         TIM1_PWM_CH1_SetPWM(output);
-        printf("TIM4 Output: %f\n", output);//左轮PWM
+       // printf("TIM4 Output: %f\n", output);//左轮PWM
     } 
 }
 
@@ -85,11 +80,11 @@ float getFeedbackPosition(TIM_HandleTypeDef *htim)
     float getposition;
      if (htim->Instance == TIM3){
         getposition = position_TIM3;
-        printf("TIM3 Output: %f\n", getposition);//右轮
+       // printf("TIM3 Output: %f\n", getposition);//右轮
     } 
     if (htim->Instance == TIM4){
          getposition = position_TIM4;
-        printf("TIM4 Output: %f\n", getposition);//左轮
+       //printf("TIM4 Output: %f\n", getposition);//左轮
     } 
     return getposition;
 }
@@ -98,11 +93,11 @@ float getFeedbackPosition(TIM_HandleTypeDef *htim)
     float getspeed;
      if (htim->Instance == TIM3){
         getspeed = speed_TIM3;
-        printf("TIM3 Output: %f\n", getspeed);//右轮
+       // printf("TIM3 Output: %f\n", getspeed);//右轮
     } 
     if (htim->Instance == TIM4){
          getspeed = speed_TIM4;
-        printf("TIM4 Output: %f\n", getspeed);//左轮
+        //printf("TIM4 Output: %f\n", getspeed);//左轮
     } 
     return getspeed;
 }
@@ -113,11 +108,11 @@ float getTargetPosition(TIM_HandleTypeDef *htim,int32_t position)
     float targetPosition;
        if (htim->Instance == TIM3){
         targetPosition = position;
-        printf("TIM3 Output: %f\n", targetPosition);//右轮
+       // printf("TIM3 Output: %f\n", targetPosition);//右轮
     } 
     if (htim->Instance == TIM4){
          targetPosition = position;
-        printf("TIM4 Output: %f\n", targetPosition);//左轮
+       // printf("TIM4 Output: %f\n", targetPosition);//左轮
     } 
     return targetPosition;
 }
