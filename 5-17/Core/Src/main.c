@@ -93,6 +93,12 @@ float speed_TIM4 = 0 ;// 电机2线速度
 float s_TIM3 = 0 ; // 电机1位移
 float s_TIM4 = 0 ; // 电机2位移
 
+int32_t setposition_TIM3;//右轮目标位置
+int32_t setposition_TIM4;//左轮目标位置
+float setRPM_TIM3 ; // 右轮目标转速
+float setRPM_TIM4 ; // 左轮目标转速
+uint8_t flag = 0; // 标志位
+
 PID_Controller panPID;  //X轴PID控制器
 PID_Controller tiltPID;  //Y轴PID控制器
 CascadePID pid_TIM3 = {0}; // 创建串级PID结构体变量//右轮
@@ -159,27 +165,29 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM4_Init();
   MX_TIM5_Init();
-  MX_TIM8_Init();
-  MX_TIM23_Init();
   MX_UART4_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
 
   SPI_LCD_Init();	                      //LCD初始化
   TIM_Init();                           //TIM初始化
   USART_Init();                         //串口初始化
+  BUZZER_OFF();
+	LASER_OFF(); 
+  STATE(red);                           //状态指示灯初始化                    
   //test();                             //硬件测试函数
   //example();                          //电机测试函数
   //USART2_Send_Data(Send_Data,8);      //发送数据函数(USART2)
 
   // 初始化内环参数
-  PID_Init_control(&pid_TIM3.inner, 0.0f, 0.0f, 0.0f,  125, 125);
-  PID_Init_control(&pid_TIM4.inner, 0.0f, 0.0f, 0.0f,  125, 125);
+  PID_Init_control(&pid_TIM3.inner, 1.8f, 0.06f, 0.05f,  900, 900);
+  PID_Init_control(&pid_TIM4.inner, 1.8f, 0.06f, 0.05f,  900, 900);
   // 初始化外环参数
-  PID_Init_control(&pid_TIM3.outer, 0.0f, 0.0f, 0.0f,  999, 999);
-  PID_Init_control(&pid_TIM4.outer, 0.0f, 0.0f, 0.0f,  999, 999);
+  PID_Init_control(&pid_TIM3.outer, 0.8f, 0.00f, 0.08f,  300, 300);
+  PID_Init_control(&pid_TIM4.outer, 0.8f, 0.00f, 0.08f,  300, 300);
 
 //初始化舵机PID
   PID_Init(&panPID,  0.01f, 0.0f, 0.003f);       
@@ -196,47 +204,112 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
    LCD_Show();
-  
-   float outerTarget_TIM3   = getTargetPosition(&htim3,0); // 获取外环目标值
-   float outerFeedback_TIM3 = getFeedbackPosition(&htim3); // 获取外环反馈值
-   float innerFeedback_TIM3 = getFeedbackSpeed(&htim3); // 获取内环反馈值
+   KEY_Scan();
+   flag = 6; // 获取按键值
+   switch (flag)
+   {
+     case 0: 
+       STATE(red);
+       setposition_TIM3 = 0;//右轮目标位置
+       setposition_TIM4 = 0;//左轮目标位置
+		   
+      break;
+     case 1:
+       setposition_TIM3 = 5000;//右轮目标位置
+       setposition_TIM4 = 5000;//左轮目标位置
+       STATE(green);
+       HAL_TIM_Base_Start_IT(&htim2);
+       
+      break;
+      case 2:
+      HAL_TIM_Base_Stop_IT(&htim2);
+      HAL_TIM_Base_Start_IT(&htim5);
+      STATE(blue);
+      break;
+      case 3:
+      setposition_TIM3 = 10000;//右轮目标位置
+      setposition_TIM4 = 10000;//左轮目标位置
+      LASER_OFF();
+      BUZZER_OFF();
+      STATE(green);
+      HAL_TIM_Base_Stop_IT(&htim5);
+      HAL_TIM_Base_Start_IT(&htim2);
+      break;
+      case 4:
+      HAL_TIM_Base_Stop_IT(&htim2);
+      HAL_TIM_Base_Start_IT(&htim5);
+      STATE(blue);
+      break;
+      case 5:
+      setposition_TIM3 = 0;//右轮目标位置
+      setposition_TIM4 = 0;//左轮目标位置
+      LASER_OFF();
+      BUZZER_OFF();
+      STATE(green);
+      HAL_TIM_Base_Stop_IT(&htim5);
+      HAL_TIM_Base_Start_IT(&htim2);
+      break; 
+      case 6://测试预留接口
+      // TIM1_PWM_CH1_SetPWM(300);
+      // TIM1_PWM_CH2_SetPWM(300);
+      // TIM1_PWM_CH1_SetPWM(-500);
+      // TIM1_PWM_CH2_SetPWM(-500);
+      // setposition_TIM3 = 15000;//右轮目标位置
+      // setposition_TIM4 = 15000;//左轮目标位置
+      setRPM_TIM3 = 250 ; // 右轮目标转速
+      setRPM_TIM4 = 250 ; // 左轮目标转速
+      HAL_TIM_Base_Start_IT(&htim2);
+      target_X=Combine(received_1, received_2); // 组合接收到的X轴数据
+	    target_Y=Combine(received_3, received_4);
+      break;
+     default:
+     LASER_ON();
+     BUZZER_ON();
+     STATE(red);
+     HAL_TIM_Base_Stop_IT(&htim5);
+     HAL_TIM_Base_Stop_IT(&htim2);
+      break;
+   }
+  //  float outerTarget_TIM3   = getTargetPosition(&htim3,setposition_TIM3); // 获取外环目标值
+  //  float outerFeedback_TIM3 = getFeedbackPosition(&htim3); // 获取外环反馈值
+  //  float innerFeedback_TIM3 = getFeedbackSpeed(&htim3); // 获取内环反馈值
 
-   float outerTarget_TIM4   = getTargetPosition(&htim4,0); //取外环目标值
-   float outerFeedback_TIM4 = getFeedbackPosition(&htim4); // 获取外环反馈值
-   float innerFeedback_TIM4 = getFeedbackSpeed(&htim4);// 获取内环反馈值
+  //  float outerTarget_TIM4   = getTargetPosition(&htim4,setposition_TIM4); //取外环目标值
+  //  float outerFeedback_TIM4 = getFeedbackPosition(&htim4); // 获取外环反馈值
+  //  float innerFeedback_TIM4 = getFeedbackSpeed(&htim4);// 获取内环反馈值
    
-   target_X=received_1;
-	 target_Y=received_2;	
+  //  target_X=received_1;
+	//  target_Y=received_2;	
 
-   x=PID_Compute(&panPID, target_X);  
-   y=PID_Compute(&tiltPID, target_Y);
+  //  x=PID_Compute(&panPID, target_X);  
+  //  y=PID_Compute(&tiltPID, target_Y);
    
-   PID_CascadeCalc(&pid_TIM3, outerTarget_TIM3, outerFeedback_TIM3, innerFeedback_TIM3); // 进行PID计算
-   PID_CascadeCalc(&pid_TIM4, outerTarget_TIM4, outerFeedback_TIM4, innerFeedback_TIM4); // 进行PID计算
-   setActuatorOutput(&htim3,pid_TIM3.output);
-   setActuatorOutput(&htim4,pid_TIM4.output);
+  //  PID_CascadeCalc(&pid_TIM3, outerTarget_TIM3, outerFeedback_TIM3, innerFeedback_TIM3); // 进行PID计算
+  //  PID_CascadeCalc(&pid_TIM4, outerTarget_TIM4, outerFeedback_TIM4, innerFeedback_TIM4); // 进行PID计算
+  //  setActuatorOutput(&htim3,pid_TIM3.output);
+  //  setActuatorOutput(&htim4,pid_TIM4.output);
 
-   if (!servo_rotation_direction) 
-	{ 
-        x = -x;  
-    }  
-    if (!servo_pitch_direction) 
-	{ 
-        y = -y;  
-    }  
-    if (MIN_ANGLE_X < servo_rotation_value + x && servo_rotation_value + x < MAX_ANGLE_X) 
-	{  
-        servo_rotation_value += x;  	
-		    SendServo_X_PWM(angle_to_pulse(servo_rotation_value) );
-  }  
-    if (MIN_ANGLE_Y < servo_pitch_value + y && servo_pitch_value + y < MAX_ANGLE_Y) 
-	{ 
-        servo_pitch_value += y;
-		    SendServo_Y_PWM(angle_to_pulse(servo_pitch_value) );
-  }
+  //  if (!servo_rotation_direction) 
+	// { 
+  //       x = -x;  
+  //   }  
+  //   if (!servo_pitch_direction) 
+	// { 
+  //       y = -y;  
+  //   }  
+  //   if (MIN_ANGLE_X < servo_rotation_value + x && servo_rotation_value + x < MAX_ANGLE_X) 
+	// {  
+  //       servo_rotation_value += x;  	
+	// 	    SendServo_X_PWM(angle_to_pulse(servo_rotation_value) );
+  // }  
+  //   if (MIN_ANGLE_Y < servo_pitch_value + y && servo_pitch_value + y < MAX_ANGLE_Y) 
+	// { 
+  //       servo_pitch_value += y;
+	// 	    SendServo_Y_PWM(angle_to_pulse(servo_pitch_value) );
+  // }
   // if(rx_buffer[0]==0x01)
   // {BUZZER_ON();}
-   HAL_Delay(5);
+   //HAL_Delay(5);
   }
 
 
@@ -310,12 +383,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) // 100ms//TIM4为左轮
 {
     if (htim->Instance == TIM2) 
     {
+        //uint32_t start = DWT->CYCCNT;
         // 读取当前计数值
         uint16_t current_count_TIM3 = TIM3->CNT;
         uint16_t current_count_TIM4 = TIM4->CNT;
         // 计算计数增量
         int32_t delta_TIM3 = current_count_TIM3 - prev_count_TIM3;
         int32_t delta_TIM4 = current_count_TIM4 - prev_count_TIM4;
+        int32_t delra_a = position_TIM3 - setposition_TIM3;
+        int32_t delra_b = position_TIM4 - setposition_TIM4;
         if (delta_TIM3 > (TIMER_MAX_COUNT / 2)) 
         {                                           
             delta_TIM3 -= TIMER_MAX_COUNT + 1;// 发生下溢
@@ -342,27 +418,105 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) // 100ms//TIM4为左轮
         RPM_TIM3 = (delta_TIM3 / (float)PULSES_PER_REV) * (60.0f / TIME_INTERVAL);
         RPM_TIM4 = (delta_TIM4 / (float)PULSES_PER_REV) * (60.0f / TIME_INTERVAL);
         // 转换为实际位置（单位：角度）
-        position_angle_TIM3 = (position_TIM3 /(float)PULSES_PER_REV) * 360.0f; // 单位：度
-        position_angle_TIM4 = (position_TIM4 /(float)PULSES_PER_REV) * 360.0f; // 单位：度
+        // position_angle_TIM3 = (position_TIM3 /(float)PULSES_PER_REV) * 360.0f; // 单位：度
+        // position_angle_TIM4 = (position_TIM4 /(float)PULSES_PER_REV) * 360.0f; // 单位：度
         // 计算位移变化量（单位：米）
-        float delta_s_TIM3 = (delta_TIM3 / (float)PULSES_PER_REV) * wheel_circumference;
-        float delta_s_TIM4 = (delta_TIM4 / (float)PULSES_PER_REV) * wheel_circumference;
+        //float delta_s_TIM3 = (delta_TIM3 / (float)PULSES_PER_REV) * wheel_circumference;
+        //float delta_s_TIM4 = (delta_TIM4 / (float)PULSES_PER_REV) * wheel_circumference;
         // 累计位移量（单位：米）
-        s_TIM3 = (position_TIM3 / (float)PULSES_PER_REV) * wheel_circumference;
-        s_TIM4 = (position_TIM4 / (float)PULSES_PER_REV) * wheel_circumference;
+        //s_TIM3 = (position_TIM3 / (float)PULSES_PER_REV) * wheel_circumference;
+        //s_TIM4 = (position_TIM4 / (float)PULSES_PER_REV) * wheel_circumference;
         // 计算线速度（单位：米/秒）
-        speed_TIM3 = delta_s_TIM3 / TIME_INTERVAL;
-        speed_TIM4 = delta_s_TIM4 / TIME_INTERVAL;
+        //speed_TIM3 = delta_s_TIM3 / TIME_INTERVAL;
+        //speed_TIM4 = delta_s_TIM4 / TIME_INTERVAL;
+
+
+         float outerTarget_TIM3   = getTargetPosition(&htim3,setposition_TIM3); // 获取外环目标值
+         float outerFeedback_TIM3 = getFeedbackPosition(&htim3); // 获取外环反馈值
+         //float innerFeedback_TIM3 = getFeedbackSpeed(&htim3); // 获取内环反馈值
+         float innerFeedback_TIM3 = getFeedbackRPM(&htim3);
+
+         float outerTarget_TIM4   = getTargetPosition(&htim4,setposition_TIM4); //取外环目标值
+         float outerFeedback_TIM4 = getFeedbackPosition(&htim4); // 获取外环反馈值
+         //float innerFeedback_TIM4 = getFeedbackSpeed(&htim4);// 获取内环反馈值
+         float innerFeedback_TIM4 = getFeedbackRPM(&htim4);
+
+         //PID_CascadeCalc(&pid_TIM3, outerTarget_TIM3, outerFeedback_TIM3, innerFeedback_TIM3); // 进行PID计算
+         //PID_CascadeCalc(&pid_TIM4, outerTarget_TIM4, outerFeedback_TIM4, innerFeedback_TIM4); // 进行PID计算
+         //setActuatorOutput(&htim3,pid_TIM3.output);
+         //setActuatorOutput(&htim4,pid_TIM4.output);
+         //printf("TIM3.output: %.2f, TIM4.output: %.2f\r\n", pid_TIM3.output, pid_TIM4.output);
+
+         PID_Calc(&pid_TIM3->inner,setRPM_TIM3, RPM_TIM3);
+         PID_Calc(&pid_TIM4->inner,setRPM_TIM4, RPM_TIM4);
+         setActuatorOutput(&htim3,pid_TIM3->inner.output);
+         setActuatorOutput(&htim4,pid_TIM4->inner.output);
+         printf("TIM3.output: %.2f, TIM4.output: %.2f\r\n", pid_TIM3->inner.output, pid_TIM4->inner.output);
+         
         // 输出当前位置
-        printf("Position TIM3: %ld pulses, %.2f degrees\r\n", position_TIM3, position_angle_TIM3);
-        printf("Position TIM4: %ld pulses, %.2f degrees\r\n", position_TIM4, position_angle_TIM4);
+        //printf("Position TIM3: %ld pulses, %.2f degrees\r\n", position_TIM3, position_angle_TIM3);
+        //printf("Position TIM4: %ld pulses, %.2f degrees\r\n", position_TIM4, position_angle_TIM4);
         // 输出转速
-        // printf("RPM_TIM3: %.2f, RPM_TIM4: %.2f\r\n", RPM_TIM3, RPM_TIM4);
+        //printf("RPM_TIM3: %.2f, RPM_TIM4: %.2f\r\n", RPM_TIM3, RPM_TIM4);
         // 输出位移
-        printf("Displacement TIM3: %.4f m, Displacement TIM4: %.4f m\r\n", s_TIM3, s_TIM4);
+        //printf("Displacement TIM3: %.4f m, Displacement TIM4: %.4f m\r\n", s_TIM3, s_TIM4);
         // 输出速度
-        printf("Speed TIM3: %.4f m/s, Speed TIM4: %.4f m/s\r\n", speed_TIM3, speed_TIM4);
-        
+        //printf("%d,%d,%d,%d\n",setposition_TIM3,position_TIM3,setposition_TIM4,position_TIM4);
+        printf("%f,%f,%f,%f\n",setRPM_TIM3,RPM_TIM3,setRPM_TIM4,RPM_TIM4);
+        //printf("Speed TIM3: %.4f m/s, Speed TIM4: %.4f m/s\r\n", speed_TIM3, speed_TIM4);
+        //uint32_t end = DWT->CYCCNT;
+        //printf("Cycles: %lu, Time: %.3f us\n", end-start, (end-start)/(SystemCoreClock/1000000.0f));
+        // if(abs(delta_a)<=100&&abs(delta_b)<=100)
+        //  {
+        //   flag += 1;
+        //  }
+         if(abs(pid_TIM3.output)<=5&&abs(pid_TIM4.output)<=5)
+         {
+          flag += 1;
+         }
+    }
+    if (htim->Instance == TIM5)    //10ms
+    {
+      target_X=Combine(received_1, received_2); // 组合接收到的X轴数据
+	    target_Y=Combine(received_3, received_4); // 组合接收到的Y轴数据	
+      // LASER_ON();
+      // BUZZER_ON();
+      x=PID_Compute(&panPID, target_X);  
+      y=PID_Compute(&tiltPID, target_Y);
+       if (!servo_rotation_direction) 
+	{ 
+        x = -x;  
+    }  
+    if (!servo_pitch_direction) 
+	{ 
+        y = -y;  
+    }  
+    if (MIN_ANGLE_X < servo_rotation_value + x && servo_rotation_value + x < MAX_ANGLE_X) 
+	{  
+        servo_rotation_value += x;  	
+		    SendServo_X_PWM(angle_to_pulse(servo_rotation_value) );
+  }  
+    if (MIN_ANGLE_Y < servo_pitch_value + y && servo_pitch_value + y < MAX_ANGLE_Y) 
+	{ 
+        servo_pitch_value += y;
+		    SendServo_Y_PWM(angle_to_pulse(servo_pitch_value) );
+  }
+    }
+
+    if (htim->Instance == TIM6)     //10ms
+    {
+      int16_t delta_x = target_X - 960 ;
+      int16_t delta_y = target_Y - 540 ;
+       if(abs(delta_x)<=5&&abs(delta_y)<=5)
+         {
+          LASER_ON();
+          BUZZER_ON();
+         }
+         else
+         {
+          LASER_OFF();
+          BUZZER_OFF();
+         }
     }
 }
 /* USER CODE END 4 */

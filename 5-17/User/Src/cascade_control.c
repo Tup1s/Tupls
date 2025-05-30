@@ -6,6 +6,8 @@ extern int32_t position_TIM3 ; // 编码器计数位置
 extern int32_t position_TIM4 ; 
 extern float speed_TIM3 ;// 电机1线速度
 extern float speed_TIM4 ;// 电机2线速度
+extern float RPM_TIM3 ;
+extern float RPM_TIM4 ;
  
 // 用于初始化PID参数的函数
 void PID_Init_control(PID *pid, float p, float i, float d, float maxI, float maxOut)
@@ -101,6 +103,21 @@ float getFeedbackPosition(TIM_HandleTypeDef *htim)
     } 
     return getspeed;
 }
+
+ float getFeedbackRPM(TIM_HandleTypeDef *htim)
+{
+    float getRPM;
+     if (htim->Instance == TIM3){
+        getRPM = RPM_TIM3 ;
+       // printf("TIM3 Output: %f\n", getspeed);//右轮
+    } 
+    if (htim->Instance == TIM4){
+         getRPM = RPM_TIM4 ;
+        //printf("TIM4 Output: %f\n", getspeed);//左轮
+    } 
+    return getRPM;
+}
+ 
  
 // 模拟获取目标值的函数
 float getTargetPosition(TIM_HandleTypeDef *htim,int32_t position)

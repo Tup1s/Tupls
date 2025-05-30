@@ -13,6 +13,9 @@ extern uint8_t received_7;
 extern uint8_t received_8;	
 
 extern uint8_t key_value;
+
+extern float target_X; // 组合接收到的X轴数据
+extern float target_Y;
 void LCD_Show(void);
 
 

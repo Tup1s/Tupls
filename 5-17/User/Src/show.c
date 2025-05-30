@@ -39,9 +39,17 @@ void LCD_Show(void)//240*280
 	LCD_DisplayNumber(130,130,received_7,3);
 	LCD_DisplayNumber(130,150,received_8,3);
 	
-	// LCD_SetColor(LIGHT_RED);		
-	// LCD_DisplayString(20,90,"key_value:");
-	// LCD_DisplayNumber(120,90,key_value,3);
+	LCD_SetColor(LIGHT_RED);		
+	LCD_DisplayString(20,170,"key_value:");
+	LCD_DisplayNumber(120,170,key_value,3);
+
+	LCD_SetColor(LIGHT_BLUE);
+	LCD_DisplayString(20,190,"target_X:");
+	LCD_DisplayNumber(120,190,target_X,3);
+
+    LCD_SetColor(LIGHT_BLUE);
+	LCD_DisplayString(20,210,"target_Y:");
+	LCD_DisplayNumber(120,210,target_Y,3);
 	// LCD_SetColor(LIGHT_BLUE);
 	// LCD_DisplayString(20,110,"Designed By Tupls");
 	// LCD_SetColor(LIGHT_GREEN);

@@ -16,4 +16,5 @@ void LASER_ON();
 void LASER_OFF();
 void STATE(uint8_t state);
 void test();
+uint16_t abs(int16_t x);
 #endif

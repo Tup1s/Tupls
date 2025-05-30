@@ -98,3 +98,8 @@ void test()
 		HAL_Delay(1000);
 	}
 }
+
+uint16_t abs(int16_t x)
+{
+	return (x < 0) ? -x : x;
+}

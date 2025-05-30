@@ -27,6 +27,7 @@ void PID_CascadeCalc(CascadePID *pid, float outerRef, float outerFdb, float inne
 void setActuatorOutput(TIM_HandleTypeDef *htim,float output);
 float getFeedbackPosition(TIM_HandleTypeDef *htim);
 float getFeedbackSpeed(TIM_HandleTypeDef *htim);
+float getFeedbackRPM(TIM_HandleTypeDef *htim);
 float getTargetPosition(TIM_HandleTypeDef *htim,int32_t position);
 
 

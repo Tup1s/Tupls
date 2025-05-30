@@ -136,3 +136,8 @@ void USART2_Send_Data(uint8_t *data, uint8_t length)
 
 	HAL_UART_Transmit_DMA(&huart2, tx_buffer, sizeof(tx_buffer)); 
 }
+uint16_t Combine(uint8_t a, uint8_t b) {
+    uint16_t result = 0;
+    result = (a << 8) | b; // 高8位是a，低8位是b
+    return result;
+}
